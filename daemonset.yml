@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: myapp
+  labels:
+    k8s-app: nginx-server
+spec:
+  selector:
+    matchLabels:
+      name: nginx-server
+  template:
+    metadata:
+      labels:
+        name: nginx-server
+    spec:
+      containers:
+      - name: nginx-server
+        image: nginx:latest
+        ports:
+        - containerPort: 80
