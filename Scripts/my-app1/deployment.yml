@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  labels:
+    app: myapp
+spec:
+  replicas: 3                                    # maintain 3 pod copies at all times
+  selector:
+    matchLabels:
+      app: myapp                                 # must match template labels below
+  template:
+    metadata:
+      labels:
+        app: myapp                                # pods carry this label; Service/selector uses it
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:  # hard rule, not a preference
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: environment
+                    operator: In                  # node's env label must match one of values below
+                    values:
+                      - production                # only schedule on nodes labeled environment=production
+      tolerations:
+        - key: "env"                              # allows pod on nodes tainted env=prod:NoSchedule
+          operator: "Equal"
+          value: "prod"
+          effect: "NoSchedule"                    # tolerates the taint; does NOT force placement (affinity does that)
+      containers:
+        - name: myapp
+          image: nginx:latest
+          ports:
+            - containerPort: 80                   # nginx listens here inside the container
+          startupProbe:                           # runs FIRST; gates liveness/readiness until it passes
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5                       # check every 5s
+            failureThreshold: 30                   # give up after 30 tries (150s total) → restart if never succeeds
+          livenessProbe:                           # "is it alive?" — fail = kill + restart container
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5                       # check every 5s
+            failureThreshold: 3                    # 3 fails (15s) → restart
+          readinessProbe:                          # "can it take traffic?" — fail = pull from Service, no restart
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5                       # check every 5s
+            failureThreshold: 3                    # 3 fails (15s) → removed from Service endpoints
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-svc
+spec:
+  type: ClusterIP                                 # internal-only virtual IP, no external access
+  selector:
+    app: myapp                                    # routes traffic to Running+Ready pods with this label
+  ports:
+    - port: 80                                     # port clients hit on the Service
+      targetPort: 80                               # forwarded to this port on the pod (matches containerPort)
