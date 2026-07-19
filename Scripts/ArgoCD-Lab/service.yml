@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: nginx-service
+  namespace: nginx-prod
 
 spec:
   type: NodePort                   # Access application from browser
